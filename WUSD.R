@@ -16,7 +16,14 @@ library(plotly)
 
 ###  Load data ----
 
-loc <- "test"
+
+loc <- "ClassHTMLfiles" 
+loc2 <- "StudentGraphs"
+
+
+dir.create(here(loc))
+
+dir.create(here(loc2))
 
 slash <- "/"
 
@@ -171,13 +178,13 @@ current.nest <- current %>%
 
 
 
-dir.create(here(loc))
+dir.create(here(loc2))
 # Makes the grade level folders
-walk(current.nest$cougrade, ~ dir.create(here(loc, .x)))
+walk(current.nest$cougrade, ~ dir.create(here(loc2, .x)))
 # Makes the teacher folders
-walk2(current.nest$cougrade, current.nest$teacher.last, ~ dir.create(here(loc, .x, .y)))
+walk2(current.nest$cougrade, current.nest$teacher.last, ~ dir.create(here(loc2, .x, .y)))
 #  Saves the graphs in the current teachers folder
-walk2(current.nest$stufile, current.nest$real.graph , ~ggsave(filename = here(loc, .x), plot = .y, height = 7, width = 7) ) 
+walk2(current.nest$stufile, current.nest$real.graph , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
 
  
 
@@ -206,8 +213,8 @@ bigchange <- all.data %>%
     filter(trimester %in% tail(unique(all.data$trimester), 2)) %>%
     group_by(student, teacher.last) %>%
     mutate(tri = case_when( 
-        trimester == tail(unique(all.data$trimester), 2)[1] ~ "old" ,
-        trimester == tail(unique(all.data$trimester), 2)[2] ~ "new" )
+        trimester == tail(unique(all.data$trimester), 2)[2] ~ "old" ,
+        trimester == tail(unique(all.data$trimester), 2)[1] ~ "new" )
         ) %>%
     select(student, teacher.last, cougrade, tri, ends_with("pl")) %>%
     gather(key = "key", value = "value", -tri, -cougrade, -teacher.last,  -student ) %>%
@@ -238,6 +245,26 @@ walk(bigchange.nest$cougrade, ~ dir.create(here(loc, .x)))
 walk2(bigchange.nest$filename, bigchange.nest$dt , ~saveWidget(widget = .y, file = here(loc, .x), selfcontained = TRUE ) ) 
 
 
+
+# teacher
+bigchange.nest <- bigchange %>% 
+    group_by(cougrade, teacher.last) %>%
+    nest() %>% 
+    mutate(dt = data %>%
+               map(~ datatable(.x, options = list(pageLength = 20)))) %>%
+    mutate(filename = paste0( cougrade, slash, teacher.last, slash,  "1 Big Changes for " , teacher.last, ".html"))
+
+
+dir.create(here(loc))
+# Makes the grade level folders
+walk(bigchange.nest$cougrade, ~ dir.create(here(loc, .x)))
+# Makes the teacher folders
+walk2(bigchange.nest$cougrade, bigchange.nest$teacher.last, ~ dir.create(here(loc, .x, .y)))
+#  Saves the graphs in the current teachers folder
+walk2(bigchange.nest$filename, bigchange.nest$dt , ~saveWidget(widget = .y, file = here(loc, .x), selfcontained = TRUE ) ) 
+
+
+
 # 
 # dt <- datatable(bigchange, options = list(pageLength = 20))
 # 
@@ -248,7 +275,7 @@ walk2(bigchange.nest$filename, bigchange.nest$dt , ~saveWidget(widget = .y, file
 ### Top students by grade ----
 
 
-
+# by teacher
 current.nest <- all.data %>%
     filter(trimester == max(trimester) ) %>%
     select(cougrade, teacher.last, student, ends_with("pl")) %>%
@@ -257,11 +284,6 @@ current.nest <- all.data %>%
     mutate(dt = data %>%
                map(~ datatable(.x, options = list(pageLength = 30)))) %>%
     mutate(filename = paste0( cougrade, slash, teacher.last, slash,  "0 Latest Trimester for " , teacher.last, ".html"))
-
-    #    mutate(htmlfile = paste0( cougrade, "/",  teacher.last, "/", "Latest trimester student PLs for ", teacher.last, ".html"))  # to create path and filename
- #   mutate(htmlfile = paste0( cougrade, " ",  teacher.last, " ", "Latest trimester student PLs for ", teacher.last, ".html"))  # to create path and filename
-
-
 
 
 
@@ -275,78 +297,26 @@ walk2(current.nest$cougrade, current.nest$teacher.last, ~ dir.create(here(loc, .
 walk2(current.nest$filename, current.nest$dt,   ~saveWidget(widget = .y, file = here(loc, .x), selfcontained = TRUE ) )  
 
 
-
-
-# top <- all.data %>%
-#     filter(trimester == max(trimester) ) %>%
-#     split(.$cougrade) %>%
-#    map(~top_frac(.1, wt = mathpl) )
-# 
-# 
-# top <- all.data %>%
-#     filter(trimester == max(trimester) ) %>%
-#     select(cougrade, teacher.last, student, ends_with("pl")) %>%
-#     split(.$cougrade) %>%
-#     map_df(~top_n(x = .x, n = round(nrow(.x) * 0.1), wt = mathpl) )
-# 
-# 
-# top.function <- function(amount, variable){
-#     all.data %>%
-#         filter(trimester == max(trimester) ) %>%
-#         select(cougrade, teacher.last, student, ends_with("pl")) %>%
-#         split(.$cougrade) %>%
-#         map_df(~top_n(x = .x, n = round(nrow(.x) * amount), wt = (!!sym(variable))) )
-#     
-# }
-# 
-# 
-# top.function(.1, "lapl") %>% datatable( options = list(pageLength = 20))
-# top.function(.1, "mathpl")
-# top.function(.1, "scipl")
-# top.function(.1, "sspl")
-# 
-# top.function(-.1, "lapl")
-# top.function(-.1, "mathpl")
-# top.function(-.1, "scipl")
-# top.function(-.1, "sspl")
-# 
-# 
-# 
-# 
-# top <- all.data %>%
-#     filter(trimester == max(trimester) ) %>%
-#     select(cougrade, teacher.last, student, ends_with("pl")) %>%
-#     split(.$cougrade) %>%
-#     map_df(~top_n(x = .x, n = round(nrow(.x) * 0.1), wt = mathpl) )
+# by grade
+current.nest <- all.data %>%
+    filter(trimester == max(trimester) ) %>%
+    select(cougrade, teacher.last, student, ends_with("pl")) %>%
+    group_by(cougrade) %>%
+    nest() %>%
+    mutate(dt = data %>%
+               map(~ datatable(.x, options = list(pageLength = 30)))) %>%
+    mutate(filename = paste0( cougrade, slash,  "0 Latest Trimester for " , cougrade, ".html"))
 
 
 
+dir.create(here(loc))
+
+# Makes the grade level folders
+walk(current.nest$cougrade, ~ dir.create(here(loc, .x)))
+#  Saves the tables in the current teachers folder
+walk2(current.nest$filename, current.nest$dt,   ~saveWidget(widget = .y, file = here(loc, .x), selfcontained = TRUE ) )  
 
 
-
-
-# 
-# top <- all.data %>%
-#     filter(trimester == max(trimester),
-#            cougrade == "08") %>%
-#     top_frac(-.1,"mathpl") %>%
-#     mutate(subject = "mathpl") %>%
-#     filter(cougrade == "9999")
-# 
-# for(i in c("mathpl", "lapl"))
-# for(g in unique(all.data$cougrade)){
-# 
-# hold <- all.data %>%
-#     filter(trimester == max(trimester),
-#            cougrade == g) %>%
-#     top_frac(.1,{{i}}) %>%
-#     mutate(subject = i)
-# 
-# top <- bind_rows(top, hold) %>%
-#     distinct()
-# 
-# }
-# 
 
 
 
@@ -450,10 +420,69 @@ walk2(current.nest$mathfileh, current.nest$mathpl.graph , ~saveWidget(widget = g
 walk2(current.nest$scifileh, current.nest$scipl.graph , ~saveWidget(widget = ggplotly(.y, tooltip = "text"), file = here(loc, .x) ) ) 
 walk2(current.nest$ssfileh, current.nest$sspl.graph , ~saveWidget(widget = ggplotly(.y, tooltip = "text"), file = here(loc, .x) ) ) 
 
-walk2(current.nest$lafile, current.nest$lapl.graph , ~ggsave(filename = here(loc, .x), plot = .y, height = 5, width = 8) ) 
-walk2(current.nest$mathfile, current.nest$mathpl.graph , ~ggsave(filename = here(loc, .x), plot = .y, height = 5, width = 8) ) 
-walk2(current.nest$scifile, current.nest$scipl.graph , ~ggsave(filename = here(loc, .x), plot = .y, height = 5, width = 8) ) 
-walk2(current.nest$ssfile, current.nest$sspl.graph , ~ggsave(filename = here(loc, .x), plot = .y, height = 5, width = 8) ) 
+# walk2(current.nest$lafile, current.nest$lapl.graph , ~ggsave(filename = here(loc, .x), plot = .y, height = 5, width = 8) ) 
+# walk2(current.nest$mathfile, current.nest$mathpl.graph , ~ggsave(filename = here(loc, .x), plot = .y, height = 5, width = 8) ) 
+# walk2(current.nest$scifile, current.nest$scipl.graph , ~ggsave(filename = here(loc, .x), plot = .y, height = 5, width = 8) ) 
+# walk2(current.nest$ssfile, current.nest$sspl.graph , ~ggsave(filename = here(loc, .x), plot = .y, height = 5, width = 8) ) 
+
+
+
+
+
+# by grade
+current.nest <- current %>%
+    mutate(student.id = stuid) %>%
+    group_by(cougrade) %>%
+    nest() %>%
+    mutate(lapl.graph = data %>%
+               map2(cougrade ,~ ggplot(.x) + 
+                        geom_histogram(aes( x = .x$lapl, text = student)) +
+                        scale_y_continuous(breaks= pretty_breaks()) +
+                        theme_hc() +
+                        labs(x = "Language Arts PL Score",
+                             y = "Number of students",
+                             title = paste0("Students by Language Arts PL Score for ", .y )) ),    
+           mathpl.graph = data %>%
+               map2(cougrade ,~ ggplot(.x) + 
+                        geom_histogram(aes( x = .x$mathpl, text = student)) +
+                        scale_y_continuous(breaks= pretty_breaks()) +
+                        theme_hc() +
+                        labs(x = "Math PL Score",
+                             y = "Number of students",
+                             title = paste0("Students by Math PL Score for ", .y )) ),  
+           scipl.graph = data %>%
+               map2(cougrade ,~ ggplot(.x) + 
+                        geom_histogram(aes( x = .x$scipl, text = student)) +
+                        scale_y_continuous(breaks= pretty_breaks()) +
+                        theme_hc() +
+                        labs(x = "Science PL Score",
+                             y = "Number of students",
+                             title = paste0("Students by Science PL Score for ", .y )) ),  
+           sspl.graph = data %>%
+               map2(cougrade ,~ ggplot(.x) + 
+                        geom_histogram(aes( x = .x$sspl, text = student)) +
+                        scale_y_continuous(breaks= pretty_breaks()) +
+                        theme_hc() +
+                        labs(x = "Social Studies PL Score",
+                             y = "Number of students",
+                             title = paste0("Students by Social Studies PL Score for ", .y )) ),  
+    ) %>%
+    mutate(lafileh = paste0( cougrade, slash,   "1 LA Distribution for " , cougrade, ".html"),
+           mathfileh = paste0( cougrade, slash,  "2 Math Distribution for " , cougrade, ".html"),
+           scifileh = paste0( cougrade, slash,  "3 Science Distribution for " , cougrade, ".html"),
+           ssfileh = paste0( cougrade, slash, "4 Social Studies Distribution for " , cougrade, ".html"))  # to create path and filename
+
+
+
+dir.create(here(loc))
+# Makes the grade level folders
+walk(current.nest$cougrade, ~ dir.create(here(loc, .x)))
+#  Saves the graphs in the current teachers folder
+walk2(current.nest$lafileh, current.nest$lapl.graph , ~saveWidget(widget = ggplotly(.y, tooltip = "text"), file = here(loc, .x) ) ) 
+walk2(current.nest$mathfileh, current.nest$mathpl.graph , ~saveWidget(widget = ggplotly(.y, tooltip = "text"), file = here(loc, .x) ) ) 
+walk2(current.nest$scifileh, current.nest$scipl.graph , ~saveWidget(widget = ggplotly(.y, tooltip = "text"), file = here(loc, .x) ) ) 
+walk2(current.nest$ssfileh, current.nest$sspl.graph , ~saveWidget(widget = ggplotly(.y, tooltip = "text"), file = here(loc, .x) ) ) 
+
 
 
 
