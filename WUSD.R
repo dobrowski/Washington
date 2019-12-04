@@ -13,8 +13,13 @@ library(scales)
 library(htmlwidgets)
 library(DT)
 library(plotly)
+library(viridis)
 
 ###  Load data ----
+
+
+scale_colour_discrete <- scale_colour_viridis_d
+scale_fill_discrete <- scale_fill_viridis_d
 
 
 loc <- "ClassHTMLfiles" 
@@ -37,6 +42,9 @@ all.data <- all.data %>%
 for( k in c("15-16","16-17","17-18","18-19", "19-20"))
 for( j in c("toro","wus","sb"))
 for( i in 1:3){
+    
+    skip_to_next <- FALSE #
+    
     tryCatch({
     
     
@@ -48,7 +56,13 @@ print(paste(k,j,i))
         
     all.data <- all.data %>%
         bind_rows(temp)
-    }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
+    }, error=function(e){
+        cat("ERROR :",conditionMessage(e), "\n")
+        skip_to_next <<- TRUE  #
+        })
+    
+    if(skip_to_next) { next }     #
+    
 }
 
 
@@ -61,7 +75,6 @@ all.data <- all.data %>%
 ###  Student Over time ----
 
 # Run for every student once a trimester.  Save all the graphs and put them up on shared drive.  
-# Change to student names (First Name Last na,me)  by Grade and then by Teacher in folder structure
 # 
 # 
 # stud  <- "4729"
@@ -186,7 +199,106 @@ walk2(current.nest$cougrade, current.nest$teacher.last, ~ dir.create(here(loc2, 
 #  Saves the graphs in the current teachers folder
 walk2(current.nest$stufile, current.nest$real.graph , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
 
- 
+
+
+#### History by cohort ---------
+
+cohort <- all.data %>% 
+    mutate(grade.numeric = if_else(cougrade == "KN",0,as.numeric(cougrade)),
+           trimester.numeric =  sub( "-.*", "", trimester ) %>% as.numeric(),
+           cohort.class =  trimester.numeric - grade.numeric ,
+           cohort.class2 = cohort.class) # take first two digits from trimester, subtract the grade level (with KN changed to 0) 
+
+cohort.copy <- cohort
+
+# cohort2 <- cohort %>%
+#     filter(cohort.class == 15) %>%
+#     select(trimester, ends_with("pl")) %>%
+#     gather(key = "key", value = "value", -trimester) %>%
+#     group_by(trimester,key) %>%
+#     transmute(cohort.average = mean(value, na.rm = TRUE)) %>%
+#     distinct() %>%
+#     ungroup()
+# 
+#  ggplot(cohort2, aes(x = trimester, y = cohort.average, group = key, color = key, label = cohort.average), size = 1) +
+#     geom_line() + 
+#     theme_hc()  +
+#     geom_text_repel(data = cohort2 %>% filter(trimester == max(trimester)) ,
+#                     aes(label = key) , 
+#                     hjust = "right", 
+#                     segment.size = .2,
+#                     segment.color = "grey",
+#                     fontface = "bold", 
+#                     size = 3, 
+#                     nudge_x = .5, 
+#                     direction = "y") +
+#     geom_label(aes(label = round(cohort.average,2)), 
+#                size = 2.5, 
+#                label.padding = unit(0.05, "lines"), 
+#                label.size = 0.0) +
+#     theme(legend.position = "none") +
+#     ylim(0,4) + 
+#     labs(title = paste0("Performance Levels over time  "),
+#          x = "Trimester",
+#          y= "Performance Level")
+# 
+
+
+class.to.cohort <- cohort %>%
+    select(trimester, cohort.class2, cougrade) %>%
+    group_by(cohort.class2) %>%
+    filter(trimester == max(trimester)) %>%
+    distinct()
+
+cohort.nest <- cohort  %>%
+    group_by(cohort.class2) %>%
+    nest() %>%
+    mutate(graphthese = data %>%
+               map(~ cohort.copy %>% 
+                       filter(cohort.class == .x$cohort.class ) %>% 
+                       select(trimester, ends_with("pl"))   %>%
+                       gather(key = "key", value = "value", -trimester) %>%
+                       group_by(trimester,key) %>%
+                       transmute(cohort.average = mean(value, na.rm = TRUE)) %>%
+                       distinct() %>%
+                       ungroup()),
+           real.graph = graphthese %>%
+               map2(cohort.class2 ,~  ggplot(.x, aes(x = trimester, y = cohort.average, group = key, color = key, label = cohort.average), size = 1) +
+                       geom_line() + 
+                       theme_hc()  +
+                       geom_text_repel(data = .x %>% filter(trimester == max(trimester)) ,
+                                       aes(label = key) ,
+                                       hjust = "right",
+                                       segment.size = .2,
+                                       segment.color = "grey",
+                                       fontface = "bold",
+                                       size = 3,
+                                       nudge_x = .5,
+                                       direction = "y") +
+                       geom_label(aes(label = round(cohort.average,2)),
+                                  size = 2.5,
+                                  label.padding = unit(0.05, "lines"),
+                                  label.size = 0.0) +
+                       theme(legend.position = "none") +
+                       ylim(0,4) +
+                       labs(title = paste0("Performance Levels over time for Class of 20", .y + 12, "-",.y + 13),
+                            x = "Trimester",
+                            y= "Performance Level")
+               )
+    ) %>% 
+    left_join(class.to.cohort) %>% 
+    mutate(filename = paste0( cougrade, slash,  "Performance Levels over time for Class of 20", cohort.class2 + 12, "-",cohort.class2 + 13, ".png"))
+
+
+dir.create(here(loc2))
+# Makes the grade level folders
+walk(cohort.nest$cougrade, ~ dir.create(here(loc2, .x)))
+#  Saves the graphs in the current teachers folder
+walk2(cohort.nest$filename, cohort.nest$real.graph , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
+
+
+
+
 
 ###  Big change between Trimester -----
 
@@ -207,25 +319,30 @@ walk2(current.nest$stufile, current.nest$real.graph , ~ggsave(filename = here(lo
 #     arrange(teacher, stuname)
 
 
-
+teacher.match <- all.data %>% 
+    filter(trimester == max(trimester)) %>%
+    select(student, teacher.last, cougrade)
 
 bigchange <- all.data %>% 
     filter(trimester %in% tail(unique(all.data$trimester), 2)) %>%
-    group_by(student, teacher.last) %>%
+    group_by(student) %>%
     mutate(tri = case_when( 
-        trimester == tail(unique(all.data$trimester), 2)[2] ~ "old" ,
-        trimester == tail(unique(all.data$trimester), 2)[1] ~ "new" )
+        trimester == tail(unique(all.data$trimester), 2)[2] ~ "new" ,
+        trimester == tail(unique(all.data$trimester), 2)[1] ~ "old" )
         ) %>%
-    select(student, teacher.last, cougrade, tri, ends_with("pl")) %>%
-    gather(key = "key", value = "value", -tri, -cougrade, -teacher.last,  -student ) %>%
+#    select(student, teacher.last, cougrade, tri, ends_with("pl")) %>%
+    select(student,  tri, ends_with("pl")) %>%
+#    gather(key = "key", value = "value", -tri, -cougrade, -teacher.last,  -student ) %>%
+    gather(key = "key", value = "value", -tri,   -student ) %>%
         pivot_wider(names_from = c(tri,key), values_from = value) %>%
-    mutate(change_lapl = old_lapl - new_lapl,
-           change_mathpl = old_mathpl - new_mathpl,
-           change_scipl = old_scipl - new_scipl,
-           change_sspl = old_sspl - new_sspl) %>%
-    select(cougrade,  teacher.last,  student, starts_with("change")) %>%
+    mutate(change_lapl =  new_lapl - old_lapl ,
+           change_mathpl = new_mathpl - old_mathpl ,
+           change_scipl = new_scipl - old_scipl ,
+           change_sspl = new_sspl - old_sspl ) %>%
+    select(student, starts_with("change")) %>%
     pivot_longer(cols = starts_with("change"), names_to = "pl", values_to = "change") %>% 
     filter(change >=1 | change <= -1) %>%
+    left_join(teacher.match) %>%
     arrange(cougrade, teacher.last, desc(change), student)
 
 bigchange.nest <- bigchange %>% 
