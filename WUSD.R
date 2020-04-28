@@ -23,7 +23,7 @@ scale_fill_discrete <- scale_fill_viridis_d
 
 
 loc <- "ClassHTMLfiles" 
-loc2 <- "StudentGraphs"
+loc2 <- "StudentGraphsWrite"
 
 
 dir.create(here(loc))
@@ -198,6 +198,100 @@ walk(current.nest$cougrade, ~ dir.create(here(loc2, .x)))
 walk2(current.nest$cougrade, current.nest$teacher.last, ~ dir.create(here(loc2, .x, .y)))
 #  Saves the graphs in the current teachers folder
 walk2(current.nest$stufile, current.nest$real.graph , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
+
+
+######  Now for district write  srclacrt  srcmathcrt  srclawrite
+
+
+graph.history.write <- function(stud){
+    
+    all.data %>%
+        filter(stuid == stud) %>%
+        select(trimester, srclawrite ) %>%
+        gather(key = "key", value = "value", -trimester) %>%
+        ggplot( aes(x = trimester, y = value, group = key, color = key, label = value), size = 1) +
+        geom_line() + 
+        theme_hc()  +
+        geom_text_repel(data = graphthis %>% filter(trimester == max(trimester)) ,
+                        aes(label = key) , 
+                        hjust = "right", 
+                        segment.size = .2,
+                        segment.color = "grey",
+                        fontface = "bold", 
+                        size = 3, 
+                        nudge_x = .5, 
+                        direction = "y") +
+        geom_label(aes(label = value), 
+                   size = 2.5, 
+                   label.padding = unit(0.05, "lines"), 
+                   label.size = 0.0) +
+        theme(legend.position = "none") +
+        ylim(0,4) + 
+        labs(title = paste0("Performance Levels over time for Student ", stud),
+             x = "Trimester",
+             y= "Performance Level")
+    
+    
+    
+} 
+
+# graph.history.write("3919")
+
+
+current.nest.write <- current %>%
+    mutate(student.id = stuid) %>%
+    group_by(student) %>%
+    nest() %>%
+    mutate(graphthese = data %>%
+               map(~ all.data %>%
+                       filter(stuid == .x$stuid) %>%
+                       select(trimester, srclawrite) %>%
+                       mutate(srclawrite = as.numeric(srclawrite)) %>%
+                       gather(key = "key", value = "value", -trimester)),
+           real.graph = graphthese %>%
+               map2(student,~ ggplot(data = .x, aes(x = trimester, y = value, group = key, color = key, label = value), size = 1) +
+                        geom_line() + 
+                        theme_hc()  +
+                        geom_text_repel(data = .x %>% filter(trimester == max(trimester)) ,
+                                        aes(label = key) , 
+                                        hjust = "right", 
+                                        segment.size = .2,
+                                        segment.color = "grey",
+                                        fontface = "bold", 
+                                        size = 3, 
+                                        nudge_x = .5, 
+                                        direction = "y") +
+                        geom_label(aes(label = value), 
+                                   size = 2.5, 
+                                   label.padding = unit(0.05, "lines"), 
+                                   label.size = 0.0) +
+                        theme(legend.position = "none") +
+                        ylim(0,4) + 
+                        labs(title = paste0("District Write over time for ", .y),
+                             x = "Trimester",
+                             y= "Performance Level")
+               )
+    ) %>%
+    unnest( cols = c(data)) %>%
+    mutate(stufile = paste0( cougrade, slash,  teacher.last, slash,    student, ".png"))  # to create path and filename
+
+
+
+
+dir.create(here(loc2))
+# Makes the grade level folders
+walk(current.nest.write$cougrade, ~ dir.create(here(loc2, .x)))
+# Makes the teacher folders
+walk2(current.nest.write$cougrade, current.nest.write$teacher.last, ~ dir.create(here(loc2, .x, .y)))
+#  Saves the graphs in the current teachers folder
+walk2(current.nest.write$stufile, current.nest.write$real.graph , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
+
+
+
+
+######
+
+
 
 
 
