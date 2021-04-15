@@ -1,5 +1,12 @@
 
 
+mutate(lacrt = if_else(lacrt == 0, litcrt, lacrt),
+       lagrades = if_else(lagrades == 0, litgrades, lagrades),
+       lawrite = if_else(lawrite == 0, writetest, lawrite)
+)
+
+
+
 
 ### Load Libraries -----
 
@@ -14,6 +21,7 @@ library(htmlwidgets)
 library(DT)
 library(plotly)
 library(viridis)
+library(glue)
 
 ###  Load data ----
 
@@ -22,8 +30,8 @@ scale_colour_discrete <- scale_colour_viridis_d
 scale_fill_discrete <- scale_fill_viridis_d
 
 
-loc <- "ClassHTMLfiles" 
-loc2 <- "StudentGraphsWrite"
+loc <- "testClass"  #"ClassHTMLfiles" 
+loc2 <- "testStudent"  #"StudentGraphsWrite"
 
 
 dir.create(here(loc))
@@ -39,7 +47,8 @@ all.data <- read_xls(here("data","mmdata","MM 18-19" , "toro tri1.xls")) %>%
 all.data <- all.data %>%
     filter(trimester == "xxxx")
 
-for( k in c("15-16","16-17","17-18","18-19", "19-20"))
+for( k in c(#"15-16","16-17","17-18","18-19", "19-20",
+            "20-21"))
 for( j in c("toro","wus","sb"))
 for( i in 1:3){
     
@@ -70,48 +79,18 @@ print(paste(k,j,i))
 all.data <- all.data %>%
     mutate_at(vars(ends_with("pl")), list( ~na_if(.,0)) ) %>% 
     mutate(teacher.last = sub( ",.*", "", teacher ),
-           student = paste0(sub( ".*,", "", stuname )," ",  sub( ",.*", "", stuname ))) 
+           student = paste0(sub( ".*,", "", stuname )," ",  sub( ",.*", "", stuname ))) %>%
+  
+  mutate(lacrt = if_else(lacrt == 0, litcrt, lacrt),
+         lagrades = if_else(lagrades == 0, litgrades, lagrades),
+         lawrite = if_else(lawrite == 0, writetest, lawrite)
+  )
 
-###  Student Over time ----
+###  Student Performance Levels  Over time ----
 
 # Run for every student once a trimester.  Save all the graphs and put them up on shared drive.  
-# 
-# 
-# stud  <- "4729"
-# stud  <- "4864"
-# stud <- "4800"
-# #stud <- "1201"
-# stud <- "3919"
-# 
-# graphthis <- all.data %>%
-#     filter(stuid == stud) %>%
-#     select(trimester, ends_with("pl")) %>%
-#     gather(key = "key", value = "value", -trimester)
-# 
-# ggplot(data = graphthis, aes(x = trimester, y = value, group = key, color = key, label = value), size = 1) +
-#     geom_line() + 
-#     theme_hc()  +
-#     geom_text_repel(data = graphthis %>% filter(trimester == max(trimester)) ,
-#                      aes(label = key) , 
-#                     hjust = "right", 
-#                     segment.size = .2,
-#                     segment.color = "grey",
-#                     fontface = "bold", 
-#                     size = 3, 
-#                     nudge_x = .5, 
-#                     direction = "y") +
-#     geom_label(aes(label = value), 
-#                size = 2.5, 
-#                label.padding = unit(0.05, "lines"), 
-#                label.size = 0.0) +
-#     theme(legend.position = "none") +
-#     ylim(0,4) + 
-#     labs(title = paste0("Performance Levels over time for Student ", stud),
-#          x = "Trimester",
-#          y= "Performance Level")
 
-
-#  Redo for all students 
+#  Redo for all students ;  Get them structured into current teachers
 
 current <- all.data %>%
     filter(trimester == max(trimester)) %>%
@@ -200,7 +179,7 @@ walk2(current.nest$cougrade, current.nest$teacher.last, ~ dir.create(here(loc2, 
 walk2(current.nest$stufile, current.nest$real.graph , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
 
 
-######  Now for district write  srclacrt  srcmathcrt  srclawrite
+######  Now for district write  srclacrt  srcmathcrt  srclawrite  -----
 
 
 graph.history.write <- function(stud){
@@ -273,7 +252,7 @@ current.nest.write <- current %>%
                )
     ) %>%
     unnest( cols = c(data)) %>%
-    mutate(stufile = paste0( cougrade, slash,  teacher.last, slash,    student, ".png"))  # to create path and filename
+    mutate(stufile = paste0( cougrade, slash,  teacher.last, slash,    student, "District Write", ".png"))  # to create path and filename
 
 
 
@@ -289,7 +268,156 @@ walk2(current.nest.write$stufile, current.nest.write$real.graph , ~ggsave(filena
 
 
 
-######
+###### Simplifying District Write code and expanding to other requested measures -----
+
+testplot <- function(data1, student1){ 
+  data1 %>% map2(student1,~ ggplot(data = .x, aes(x = trimester, y = value, group = key, color = key, label = value), size = 1) +
+                                    geom_line() + 
+                                    theme_hc()  +
+                                    geom_text_repel(data = .x %>% filter(trimester == max(trimester)) ,
+                                                    aes(label = key) , 
+                                                    hjust = "right", 
+                                                    segment.size = .2,
+                                                    segment.color = "grey",
+                                                    fontface = "bold", 
+                                                    size = 3, 
+                                                    nudge_x = .5, 
+                                                    direction = "y") +
+                                    geom_label(aes(label = value), 
+                                               size = 2.5, 
+                                               label.padding = unit(0.05, "lines"), 
+                                               label.size = 0.0) +
+                                    theme(legend.position = "none") +
+                                    ylim(0,NA) + 
+                                    labs(title = glue("{.x$key[1]} over time for {.y}"),
+                                         x = "Trimester",
+                                         y= "Performance Level")
+)
+}
+
+
+
+current.nest.write <- current %>%
+    mutate(student.id = stuid) %>%
+    group_by(student) %>%
+    nest() %>%
+    mutate(graphthese.write = data %>%
+               map(~ all.data %>%
+                       filter(stuid == .x$stuid) %>%
+                       select(trimester, srclawrite) %>%
+                       mutate(srclawrite = as.numeric(srclawrite)) %>%
+                       gather(key = "key", value = "value", -trimester)),
+           real.graph.write = graphthese.write %>%   testplot(student),
+           
+           graphthese.lacart = data %>%
+               map(~ all.data %>%
+                       filter(stuid == .x$stuid) %>%
+                       select(trimester, srclacrt) %>%
+                       mutate(srclacrt = as.numeric(srclacrt)) %>%
+                       gather(key = "key", value = "value", -trimester)),
+           real.graph.lacrt = graphthese.lacart %>%  testplot(student),
+
+           graphthese.mathcart = data %>%
+               map(~ all.data %>%
+                       filter(stuid == .x$stuid) %>%
+                       select(trimester, srcmathcrt) %>%
+                       mutate(srcmathcrt = as.numeric(srcmathcrt)) %>%
+                       gather(key = "key", value = "value", -trimester)),
+           real.graph.mathcrt = graphthese.mathcart %>%  testplot(student)
+
+    ) %>%
+    unnest( cols = c(data)) %>%
+    mutate(stufile.write = paste0( cougrade, slash,  teacher.last, slash,    student, " - District Write", ".png"))  %>% # to create path and filename
+mutate(stufile.lacrt = paste0( cougrade, slash,  teacher.last, slash,    student, " - LA CRT", ".png"))  %>%  # to create path and filename
+mutate(stufile.mathcrt = paste0( cougrade, slash,  teacher.last, slash,    student, " - Math CRT", ".png"))  # to create path and filename
+
+
+
+
+dir.create(here(loc2))
+# Makes the grade level folders
+walk(current.nest.write$cougrade, ~ dir.create(here(loc2, .x)))
+# Makes the teacher folders
+walk2(current.nest.write$cougrade, current.nest.write$teacher.last, ~ dir.create(here(loc2, .x, .y)))
+#  Saves the graphs in the current teachers folder
+walk2(current.nest.write$stufile.write, current.nest.write$real.graph.write , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
+walk2(current.nest.write$stufile.lacrt, current.nest.write$real.graph.lacrt , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
+walk2(current.nest.write$stufile.mathcrt, current.nest.write$real.graph.mathcrt , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
+
+
+#####   Test multiple columns -------
+
+
+testplot_group <- function(data1, student1){ 
+  data1 %>% map2(student1,~ ggplot(data = .x, aes(x = trimester, y = value, group = key, color = key, label = value), size = 1) +
+                   geom_line() + 
+                   theme_hc()  +
+                   geom_text_repel(data = .x %>% filter(trimester == max(trimester)) ,
+                                   aes(label = key) ,
+                                   hjust = "right",
+                                   segment.size = .2,
+                                   segment.color = "grey",
+                                   fontface = "bold",
+                                   size = 3,
+                                   nudge_x = .5,
+                                   direction = "y") +
+                   geom_label(aes(label = value),
+                              size = 2.5,
+                              label.padding = unit(0.05, "lines"),
+                              label.size = 0.0) +
+                   theme(legend.position = "none") +
+                   ylim(0,4) + # ylim(0,NA) +
+                   labs(title = glue("{.y}"),#glue("{.x$key[1]} over time for {.y}"),
+                        x = "Trimester",
+                        y= "Performance Level")
+  )
+}
+
+
+current.nest.multi <- current %>%
+  mutate(student.id = stuid) %>%
+  group_by(student) %>%
+  nest() %>%
+  mutate(graphthese.multi = data %>%
+           map(~ all.data %>%
+                 filter(stuid == .x$stuid) %>%
+                 select(trimester, 
+                        lacrt,
+                        lagrades,
+                        lawrite ,
+                        mathcrt ,
+                        mathgrades ,
+                        writetest
+                        ) %>%
+                 mutate(across(.cols = -trimester, .fns =  as.numeric)) %>%
+                 gather(key = "key", value = "value", -trimester)),
+         real.graph.multi = graphthese.multi %>%   testplot_group(student),
+         
+
+  ) %>%
+  unnest( cols = c(data)) %>%
+  # mutate(stufile.write = paste0( cougrade, slash,  teacher.last, slash,    student, " - District Write", ".png"))  %>% # to create path and filename
+  # mutate(stufile.lacrt = paste0( cougrade, slash,  teacher.last, slash,    student, " - LA CRT", ".png"))  %>%  # to create path and filename
+  mutate(stufile.multi = paste0( cougrade, slash,  teacher.last, slash,    student, " - Multi", ".png"))  # to create path and filename
+
+
+
+
+dir.create(here(loc2))
+# Makes the grade level folders
+walk(current.nest.multi$cougrade, ~ dir.create(here(loc2, .x)))
+# Makes the teacher folders
+walk2(current.nest.multi$cougrade, current.nest.multi$teacher.last, ~ dir.create(here(loc2, .x, .y)))
+#  Saves the graphs in the current teachers folder
+walk2(current.nest.multi$stufile.multi, current.nest.multi$real.graph.multi , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
+#walk2(current.nest.write$stufile.lacrt, current.nest.write$real.graph.lacrt , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
+
+
+
+
+
+
+
 
 
 
