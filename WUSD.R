@@ -378,27 +378,37 @@ current.nest.multi <- current %>%
   mutate(student.id = stuid) %>%
   group_by(student) %>%
   nest() %>%
-  mutate(graphthese.multi = data %>%
+  mutate(graphthese.la = data %>%
            map(~ all.data %>%
                  filter(stuid == .x$stuid) %>%
                  select(trimester, 
                         lacrt,
                         lagrades,
                         lawrite ,
-                        mathcrt ,
-                        mathgrades ,
                         writetest
                         ) %>%
                  mutate(across(.cols = -trimester, .fns =  as.numeric)) %>%
                  gather(key = "key", value = "value", -trimester)),
-         real.graph.multi = graphthese.multi %>%   testplot_group(student),
+         real.graph.la = graphthese.la %>%   testplot_group(student),
+         
+
+         graphthese.math = data %>%
+           map(~ all.data %>%
+                 filter(stuid == .x$stuid) %>%
+                 select(trimester, 
+                        mathcrt ,
+                        mathgrades 
+                 ) %>%
+                 mutate(across(.cols = -trimester, .fns =  as.numeric)) %>%
+                 gather(key = "key", value = "value", -trimester)),
+         real.graph.math = graphthese.math %>%   testplot_group(student),
          
 
   ) %>%
   unnest( cols = c(data)) %>%
   # mutate(stufile.write = paste0( cougrade, slash,  teacher.last, slash,    student, " - District Write", ".png"))  %>% # to create path and filename
-  # mutate(stufile.lacrt = paste0( cougrade, slash,  teacher.last, slash,    student, " - LA CRT", ".png"))  %>%  # to create path and filename
-  mutate(stufile.multi = paste0( cougrade, slash,  teacher.last, slash,    student, " - Multi", ".png"))  # to create path and filename
+   mutate(stufile.la = paste0( cougrade, slash,  teacher.last, slash,    student, " - Language Arts", ".png"))  %>%  # to create path and filename
+  mutate(stufile.math = paste0( cougrade, slash,  teacher.last, slash,    student, " - Math", ".png"))  # to create path and filename
 
 
 
@@ -409,8 +419,8 @@ walk(current.nest.multi$cougrade, ~ dir.create(here(loc2, .x)))
 # Makes the teacher folders
 walk2(current.nest.multi$cougrade, current.nest.multi$teacher.last, ~ dir.create(here(loc2, .x, .y)))
 #  Saves the graphs in the current teachers folder
-walk2(current.nest.multi$stufile.multi, current.nest.multi$real.graph.multi , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
-#walk2(current.nest.write$stufile.lacrt, current.nest.write$real.graph.lacrt , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
+walk2(current.nest.multi$stufile.la, current.nest.multi$real.graph.la , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
+walk2(current.nest.multi$stufile.math, current.nest.multi$real.graph.math , ~ggsave(filename = here(loc2, .x), plot = .y, height = 7, width = 7) ) 
 
 
 
